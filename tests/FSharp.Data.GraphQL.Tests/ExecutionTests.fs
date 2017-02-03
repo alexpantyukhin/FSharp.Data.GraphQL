@@ -116,7 +116,8 @@ let ``Execution handles basic tasks: executes arbitrary code`` () =
         ])
 
     let schema = Schema(DataType)
-    let result = sync <| schema.AsyncExecute(ast, data, variables = Map.ofList [ "size", 100 :> obj], operationName = "Example")
+    let schemaProcessor = SchemaProcessor(schema)
+    let result = sync <| schemaProcessor.AsyncExecute(ast, data, variables = Map.ofList [ "size", 100 :> obj], operationName = "Example")
     noErrors result
     result.["data"] |> equals (upcast expected)
 
@@ -148,6 +149,7 @@ let ``Execution handles basic tasks: merges parallel fragments`` () =
         ])
 
     let schema = Schema(Type)
+    let schemaProcessor = SchemaProcessor(schema)
     let expected =
       NameValueLookup.ofList [
         "a", upcast "Apple"
@@ -162,7 +164,7 @@ let ``Execution handles basic tasks: merges parallel fragments`` () =
             ]
         ]
     ]
-    let result = sync <| schema.AsyncExecute(ast, obj())
+    let result = sync <| schemaProcessor.AsyncExecute(ast, obj())
     noErrors result
     result.["data"] |> equals (upcast expected)
     
@@ -171,7 +173,7 @@ let ``Execution handles basic tasks: threads root value context correctly`` () =
     let query = "query Example { a }"
     let data = { Thing = "" }
     let Thing = Define.Object<TestThing>("Type", [  Define.Field("a", String, fun _ value -> value.Thing <- "thing"; value.Thing) ])
-    let result = sync <| Schema(Thing).AsyncExecute(parse query, data)
+    let result = sync <| SchemaProcessor(Schema(Thing)).AsyncExecute(parse query, data)
     noErrors result
     equals "thing" data.Thing
     
@@ -193,7 +195,7 @@ let ``Execution handles basic tasks: correctly threads arguments`` () =
                 value.Str) 
     ])
 
-    let result = sync <| Schema(Type).AsyncExecute(parse query, data)
+    let result = sync <| SchemaProcessor(Schema(Type)).AsyncExecute(parse query, data)
     noErrors result
     equals (Some 123) data.Num
     equals (Some "foo") data.Str
@@ -207,7 +209,7 @@ let ``Execution handles basic tasks: uses the inline operation if no operation n
                 "Type", [
                     Define.Field("a", String, fun _ x -> x.A)
                 ]))
-    let result = sync <| schema.AsyncExecute(parse "{ a }", { A = "b" })
+    let result = sync <| SchemaProcessor(schema).AsyncExecute(parse "{ a }", { A = "b" })
     noErrors result
     result.["data"] |> equals (upcast NameValueLookup.ofList ["a", "b" :> obj]) 
     
@@ -218,7 +220,7 @@ let ``Execution handles basic tasks: uses the only operation if no operation nam
                 "Type", [
                     Define.Field("a", String, fun _ x -> x.A)
                 ]))
-    let result = sync <| schema.AsyncExecute(parse "query Example { a }", { A = "b" })
+    let result = sync <| SchemaProcessor(schema).AsyncExecute(parse "query Example { a }", { A = "b" })
     noErrors result
     result.["data"] |> equals (upcast NameValueLookup.ofList ["a", "b" :> obj])
     
@@ -230,7 +232,7 @@ let ``Execution handles basic tasks: uses the named operation if operation name 
                     Define.Field("a", String, fun _ x -> x.A)
                 ]))
     let query = "query Example { first: a } query OtherExample { second: a }"
-    let result = sync <| schema.AsyncExecute(parse query, { A = "b" }, operationName = "OtherExample")
+    let result = sync <| SchemaProcessor(schema).AsyncExecute(parse query, { A = "b" }, operationName = "OtherExample")
     noErrors result
     result.["data"] |> equals (upcast NameValueLookup.ofList ["second", "b" :> obj])
 
@@ -245,7 +247,7 @@ let ``Execution when querying the same field twice will return it`` () =
                     Define.Field("b", Int, fun _ x -> x.B)
                 ]))
     let query = "query Example { a, b, a }"
-    let result = sync <| schema.AsyncExecute(query, { A = "aa"; B = 2 });
+    let result = sync <| SchemaProcessor(schema).AsyncExecute(query, { A = "aa"; B = 2 });
     let expected =
       NameValueLookup.ofList [
         "a", upcast "aa"
@@ -261,9 +263,9 @@ let ``Execution when querying returns unique document id with response`` () =
                     Define.Field("a", String, fun _ x -> x.A)
                     Define.Field("b", Int, fun _ x -> x.B)
                 ]))
-    let result1 = sync <| schema.AsyncExecute("query Example { a, b, a }", { A = "aa"; B = 2 })
+    let result1 = sync <| SchemaProcessor(schema).AsyncExecute("query Example { a, b, a }", { A = "aa"; B = 2 })
     result1.["documentId"] |> notEquals (null)
     result1.["documentId"] |> notEquals (upcast Unchecked.defaultof<int>)
-    let result2 = sync <| schema.AsyncExecute("query Example { a, b, a }", { A = "aa"; B = 2 })
+    let result2 = sync <| SchemaProcessor(schema).AsyncExecute("query Example { a, b, a }", { A = "aa"; B = 2 })
     result1.["documentId"] |> equals (result2.["documentId"])
     

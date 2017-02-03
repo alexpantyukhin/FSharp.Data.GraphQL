@@ -65,6 +65,7 @@ let ``Execute handles execution of abstract types: isTypeOf is used to resolve r
             Define.Field("pets", ListOf PetType, fun _ _ -> [ { Name = "Odie"; Woofs = true } :> IPet ; upcast { Name = "Garfield"; Meows = false } ])
         ]), 
         config = { SchemaConfig.Default with Types = [CatType; DogType] })
+    let schemaProcessor = SchemaProcessor(schema)
     let query = """{
       pets {
         name
@@ -76,7 +77,7 @@ let ``Execute handles execution of abstract types: isTypeOf is used to resolve r
         }
       }
     }"""
-    let result = sync <| schema.AsyncExecute(parse query)
+    let result = sync <| schemaProcessor.AsyncExecute(parse query)
     let expected =
       NameValueLookup.ofList [
           "pets", upcast [
@@ -114,6 +115,7 @@ let ``Execute handles execution of abstract types: isTypeOf is used to resolve r
         [
             Define.Field("pets", ListOf PetType, fun _ _ -> [ DogCase { Name = "Odie"; Woofs = true }; CatCase { Name = "Garfield"; Meows = false } ])
         ]))
+    let schemaProcessor = SchemaProcessor(schema)
     let query = """{
       pets {
         ... on Dog {
@@ -126,7 +128,7 @@ let ``Execute handles execution of abstract types: isTypeOf is used to resolve r
         }
       }
     }"""
-    let result = sync <| schema.AsyncExecute(parse query)
+    let result = sync <| schemaProcessor.AsyncExecute(parse query)
     let expected =
       NameValueLookup.ofList [
         "pets", upcast [
@@ -211,12 +213,13 @@ let ``inner types `` () =
        ])
 
    let schema = Schema(query = Query, config = { SchemaConfig.Default with Types = [ User; Widget ]})
+   let schemaProcessor = SchemaProcessor(schema)
     
    let query = "{
                    viewer {name}, widgets { edges }
                 }"
    let q = query.Trim().Replace("\r\n", " ")
 
-   let result = sync <| schema.AsyncExecute(parse query)
+   let result = sync <| schemaProcessor.AsyncExecute(parse query)
     
    noErrors result  

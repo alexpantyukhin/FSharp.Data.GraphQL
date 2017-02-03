@@ -114,7 +114,7 @@ let ``Execute can introspect on union and intersection types`` () =
           inputFields { name }
         }
       }"""
-    let actual = sync <| schema.AsyncExecute(ast)
+    let actual = sync <| SchemaProcessor(schema).AsyncExecute(ast)
     let expected =
       NameValueLookup.ofList [
         "Named", upcast NameValueLookup.ofList [
@@ -155,7 +155,7 @@ let ``Executes union types`` () =
           meows
         }
       }"""
-    let actual = sync <| schema.AsyncExecute(ast, john)
+    let actual = sync <| SchemaProcessor(schema).AsyncExecute(ast, john)
     let expected =
       NameValueLookup.ofList [
         "__typename", box "Person"
@@ -190,7 +190,7 @@ let ``Executes union types with inline fragments`` () =
           }
         }
       }"""
-    let actual = sync <| schema.AsyncExecute(ast, john)
+    let actual = sync <| SchemaProcessor(schema).AsyncExecute(ast, john)
     let expected =
       NameValueLookup.ofList [
         "__typename", box "Person"
@@ -220,7 +220,7 @@ let ``Executes interface types`` () =
           meows
         }
       }"""
-    let actual = sync <| schema.AsyncExecute(ast, john)
+    let actual = sync <| SchemaProcessor(schema).AsyncExecute(ast, john)
     let expected =
       NameValueLookup.ofList [
         "__typename", box "Person"
@@ -253,7 +253,7 @@ let ``Executes interface types with inline fragments`` () =
           }
         }
       }"""
-    let actual = sync <| schema.AsyncExecute(ast, john)
+    let actual = sync <| SchemaProcessor(schema).AsyncExecute(ast, john)
     let expected =
       NameValueLookup.ofList [
         "__typename", box "Person"
@@ -300,7 +300,7 @@ let ``Execute allows fragment conditions to be abstract types`` () =
           meows
         }
       }"""
-    let actual = sync <| schema.AsyncExecute(ast, john)
+    let actual = sync <| SchemaProcessor(schema).AsyncExecute(ast, john)
     let expected =
       NameValueLookup.ofList [
         "__typename", box "Person"

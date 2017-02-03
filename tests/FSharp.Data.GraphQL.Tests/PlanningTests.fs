@@ -63,12 +63,13 @@ and UNamed =
 [<Fact>]
 let ``Planning should retain correct types for leafs``() = 
     let schema = Schema(Person)
+    let schemaProcessor = SchemaProcessor(schema)
     let query = """{
         firstName
         lastName
         age
     }"""
-    let plan = schema.CreateExecutionPlan(query)
+    let plan = schemaProcessor.CreateExecutionPlan(query)
     plan.RootDef |> equals (upcast Person)
     equals 3 plan.Fields.Length
     plan.Fields
@@ -80,6 +81,7 @@ let ``Planning should retain correct types for leafs``() =
 [<Fact>]
 let ``Planning should work with fragments``() = 
     let schema = Schema(Person)
+    let schemaProcessor = SchemaProcessor(schema)
     let query = """query Example {
         ...named
         age
@@ -88,7 +90,7 @@ let ``Planning should work with fragments``() =
         firstName
         lastName
     }"""
-    let plan = schema.CreateExecutionPlan(query)
+    let plan = schemaProcessor.CreateExecutionPlan(query)
     plan.RootDef |> equals (upcast Person)
     equals 3 plan.Fields.Length
     plan.Fields
@@ -100,6 +102,7 @@ let ``Planning should work with fragments``() =
 [<Fact>]
 let ``Planning should work with parallel fragments``() = 
     let schema = Schema(Person)
+    let schemaProcessor = SchemaProcessor(schema)
     let query = """query Example {
         ...fnamed
         ...lnamed
@@ -112,7 +115,7 @@ let ``Planning should work with parallel fragments``() =
         lastName
     }
     """
-    let plan = schema.CreateExecutionPlan(query)
+    let plan = schemaProcessor.CreateExecutionPlan(query)
     plan.RootDef |> equals (upcast Person)
     equals 3 plan.Fields.Length
     plan.Fields
@@ -125,6 +128,7 @@ let ``Planning should work with parallel fragments``() =
 let ``Planning should retain correct types for lists``() = 
     let Query = Define.Object("Query", [ Define.Field("people", ListOf Person, fun _ () -> people) ])
     let schema = Schema(Query)
+    let schemaProcessor = SchemaProcessor(schema)
     let query = """{
         people {
             firstName
@@ -133,7 +137,7 @@ let ``Planning should retain correct types for lists``() =
         }
     }"""
     let PersonList : ListOfDef<Person, Person list> = ListOf Person
-    let plan = schema.CreateExecutionPlan(query)
+    let plan = schemaProcessor.CreateExecutionPlan(query)
     equals 1 plan.Fields.Length
     let listInfo = plan.Fields.Head
     listInfo.Identifier |> equals "people"
@@ -158,6 +162,7 @@ let ``Planning should retain correct types for lists``() =
 let ``Planning should work with interfaces``() = 
     let Query = Define.Object("Query", [ Define.Field("names", ListOf INamed, fun _ () -> []) ])
     let schema = Schema(query = Query, config = { SchemaConfig.Default with Types = [ Person; Animal ] })
+    let schemaProcessor = SchemaProcessor(schema)
     let query = """query Example {
         names {
             name
@@ -170,7 +175,7 @@ let ``Planning should work with interfaces``() =
     fragment ageFragment on Person {
         age
     }"""
-    let plan = schema.CreateExecutionPlan(query)
+    let plan = schemaProcessor.CreateExecutionPlan(query)
     equals 1 plan.Fields.Length
     let INamedList : ListOfDef<obj, obj list> = ListOf INamed
     let listInfo = plan.Fields.Head
@@ -194,6 +199,7 @@ let ``Planning should work with interfaces``() =
 let ``Planning should work with unions``() = 
     let Query = Define.Object("Query", [ Define.Field("names", ListOf UNamed, fun _ () -> []) ])
     let schema = Schema(Query)
+    let schemaProcessor = SchemaProcessor(schema)
     let query = """query Example {
         names {
             ... on Animal {
@@ -206,7 +212,7 @@ let ``Planning should work with unions``() =
             }
         }
     }"""
-    let plan = schema.CreateExecutionPlan(query)
+    let plan = schemaProcessor.CreateExecutionPlan(query)
     equals 1 plan.Fields.Length
     let listInfo = plan.Fields.Head
     let UNamedList : ListOfDef<Named, Named list> = ListOf UNamed
