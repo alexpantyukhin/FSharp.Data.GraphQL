@@ -274,39 +274,42 @@ let rec private createCompletion (possibleTypesFn: TypeDef -> ObjectDef []) (ret
     | _ -> failwithf "Unexpected value of returnDef: %O" returnDef
 
 and internal compileField possibleTypesFn (fieldDef: FieldDef) (fieldExecuteMap: FieldExecuteMap) : ExecuteField =
-    let completed = createCompletion possibleTypesFn (fieldDef.TypeDef) fieldExecuteMap
-    match fieldDef.Resolve with
-    | Resolve.BoxedSync(inType, outType, resolve) ->
-        fun resolveFieldCtx value ->
-            try
-                let res = resolve resolveFieldCtx value
-                if res = null
-                then AsyncVal.empty
-                else completed resolveFieldCtx res 
-            with
-            | :? AggregateException as e ->
-                e.InnerExceptions |> Seq.iter (resolveFieldCtx.AddError)
-                AsyncVal.empty
-            | ex -> 
-                resolveFieldCtx.AddError ex
-                AsyncVal.empty
+    match fieldDef.RemoteInstance with
+    | Some remoteInstance -> remoteInstance.RemoteStrategy
+    | None ->
+        let completed = createCompletion possibleTypesFn (fieldDef.TypeDef) fieldExecuteMap
+        match fieldDef.Resolve with
+        | Resolve.BoxedSync(inType, outType, resolve) ->
+            fun resolveFieldCtx value ->
+                try
+                    let res = resolve resolveFieldCtx value
+                    if res = null
+                    then AsyncVal.empty
+                    else completed resolveFieldCtx res 
+                with
+                | :? AggregateException as e ->
+                    e.InnerExceptions |> Seq.iter (resolveFieldCtx.AddError)
+                    AsyncVal.empty
+                | ex -> 
+                    resolveFieldCtx.AddError ex
+                    AsyncVal.empty
 
-    | Resolve.BoxedAsync(inType, outType, resolve) ->
-        fun resolveFieldCtx value -> 
-            try
-                resolve resolveFieldCtx value
-                |> AsyncVal.ofAsync
-                |> AsyncVal.bind (completed resolveFieldCtx)
-            with
-            | :? AggregateException as e ->
-                e.InnerExceptions |> Seq.iter (resolveFieldCtx.AddError)
-                AsyncVal.empty
-            | ex -> 
-                resolveFieldCtx.AddError(ex)
-                AsyncVal.empty
+        | Resolve.BoxedAsync(inType, outType, resolve) ->
+            fun resolveFieldCtx value -> 
+                try
+                    resolve resolveFieldCtx value
+                    |> AsyncVal.ofAsync
+                    |> AsyncVal.bind (completed resolveFieldCtx)
+                with
+                | :? AggregateException as e ->
+                    e.InnerExceptions |> Seq.iter (resolveFieldCtx.AddError)
+                    AsyncVal.empty
+                | ex -> 
+                    resolveFieldCtx.AddError(ex)
+                    AsyncVal.empty
 
-    | Undefined -> 
-        fun _ _ -> raise (InvalidOperationException(sprintf "Field '%s' has been accessed, but no resolve function for that field definition was provided. Make sure, you've specified resolve function or declared field with Define.AutoField method" fieldDef.Name))
+        | Undefined -> 
+            fun _ _ -> raise (InvalidOperationException(sprintf "Field '%s' has been accessed, but no resolve function for that field definition was provided. Make sure, you've specified resolve function or declared field with Define.AutoField method" fieldDef.Name))
 
     /// Takes an object type and a field, and returns that field’s type on the object type, or null if the field is not valid on the object type
 and private getFieldDefinition (ctx: ExecutionContext) (objectType: ObjectDef) (field: Field) : FieldDef option =
@@ -365,7 +368,7 @@ let internal executePlan (ctx: ExecutionContext) (plan: ExecutionPlan) (objdef: 
                   Variables = ctx.Variables } 
             let execute = fieldExecuteMap.GetExecute(ctx.ExecutionPlan.RootDef.Name, info.Definition.Name)
             let res = execute fieldCtx value
-            //let res = //info.Definition.Execute fieldCtx value
+
             res 
             |> AsyncVal.map (fun r -> KeyValuePair<_,_>(name, r))
             |> AsyncVal.rescue (fun e -> fieldCtx.AddError e; KeyValuePair<_,_>(name, null)))

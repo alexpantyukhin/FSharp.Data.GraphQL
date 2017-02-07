@@ -317,6 +317,11 @@ type ISchema =
         abstract ParseErrors : exn[] -> string[]
     end
 
+and RemoteInstance = 
+    interface
+        abstract RemoteStrategy: ResolveFieldContext -> obj -> AsyncVal<obj>
+    end
+
 and FieldExecuteMap () = 
     let fieldExecuteMap = new Dictionary<string * string, ExecuteField>();
 
@@ -660,6 +665,9 @@ and FieldDef =
         abstract DeprecationReason : string option
         /// Field's GraphQL type definition.
         abstract TypeDef : OutputDef
+
+        abstract RemoteInstance : RemoteInstance option
+
         /// Field's arguments list.
         abstract Args : InputFieldDef []
         /// Field resolution function.
@@ -685,6 +693,7 @@ and [<CustomEquality; NoComparison>] internal FieldDefinition<'Val, 'Res> =
       TypeDef : OutputDef<'Res>
       /// Field resolution function.
       Resolve : Resolve
+      RemoteInstance : RemoteInstance option
       /// Field's arguments list.
       Args : InputFieldDef []
       /// Optional field deprecation warning.
@@ -698,6 +707,7 @@ and [<CustomEquality; NoComparison>] internal FieldDefinition<'Val, 'Res> =
         member x.TypeDef = x.TypeDef :> OutputDef
         member x.Args = x.Args
         member x.Resolve = x.Resolve
+        member x.RemoteInstance = x.RemoteInstance
     
     interface FieldDef<'Val>
     
@@ -2064,6 +2074,7 @@ module SchemaDefinitions =
                      Resolve = Resolve.defaultResolve<'Val, 'Res> name
                      Args = defaultArg args [] |> Array.ofList
                      DeprecationReason = deprecationReason
+                     RemoteInstance = None
                      }
         
         /// <summary>
@@ -2079,6 +2090,7 @@ module SchemaDefinitions =
                      Resolve = Undefined
                      Args = [||]
                      DeprecationReason = None
+                     RemoteInstance = None
                      }
         
         /// <summary>
@@ -2095,6 +2107,21 @@ module SchemaDefinitions =
                      Resolve = Sync(typeof<'Val>, typeof<'Res>, resolve)
                      Args = [||]
                      DeprecationReason = None
+                     RemoteInstance = None
+                      }
+
+
+        static member Field(name : string, typedef : #OutputDef<'Res>, 
+                            [<ReflectedDefinition(true)>] resolve : Expr<ResolveFieldContext -> 'Val -> 'Res>,
+                            remoteInstance: RemoteInstance
+                            ) : FieldDef<'Val> = 
+            upcast { FieldDefinition.Name = name
+                     Description = None
+                     TypeDef = typedef
+                     Resolve = Sync(typeof<'Val>, typeof<'Res>, resolve)
+                     Args = [||]
+                     DeprecationReason = None
+                     RemoteInstance = Some remoteInstance
                       }
         
         /// <summary>
@@ -2112,6 +2139,7 @@ module SchemaDefinitions =
                      Resolve = Sync(typeof<'Val>, typeof<'Res>, resolve)
                      Args = [||]
                      DeprecationReason = None
+                     RemoteInstance = None
                       }
         
         /// <summary>
@@ -2130,6 +2158,18 @@ module SchemaDefinitions =
                      Resolve = Sync(typeof<'Val>, typeof<'Res>, resolve)
                      Args = args |> List.toArray
                      DeprecationReason = None
+                     RemoteInstance = None
+                     }
+
+        static member Field(name : string, typedef : #OutputDef<'Res>, description : string, args : InputFieldDef list, 
+                            [<ReflectedDefinition(true)>] resolve : Expr<ResolveFieldContext -> 'Val -> 'Res>, remoteInstance: RemoteInstance option) : FieldDef<'Val> = 
+            upcast { FieldDefinition.Name = name
+                     Description = Some description
+                     TypeDef = typedef
+                     Resolve = Sync(typeof<'Val>, typeof<'Res>, resolve)
+                     Args = args |> List.toArray
+                     DeprecationReason = None
+                     RemoteInstance = remoteInstance
                      }
         
         /// <summary>
@@ -2150,6 +2190,7 @@ module SchemaDefinitions =
                      Resolve = Sync(typeof<'Val>, typeof<'Res>, resolve)
                      Args = args |> List.toArray
                      DeprecationReason = Some deprecationReason
+                     RemoteInstance = None
                      }
         
         /// <summary>
@@ -2166,6 +2207,7 @@ module SchemaDefinitions =
                      Resolve = Async(typeof<'Val>, typeof<'Res>, resolve)
                      Args = [||]
                      DeprecationReason = None
+                     RemoteInstance = None
                       }
         
         /// <summary>
@@ -2183,6 +2225,7 @@ module SchemaDefinitions =
                      Resolve = Async(typeof<'Val>, typeof<'Res>, resolve)
                      Args = [||]
                      DeprecationReason = None
+                     RemoteInstance = None
                       }
         
         /// <summary>
@@ -2202,6 +2245,7 @@ module SchemaDefinitions =
                      Resolve = Async(typeof<'Val>, typeof<'Res>, resolve)
                      Args = args |> List.toArray
                      DeprecationReason = None
+                     RemoteInstance = None
                      }
         
         /// <summary>
@@ -2223,6 +2267,7 @@ module SchemaDefinitions =
                      Resolve = Async(typeof<'Val>, typeof<'Res>, resolve)
                      Args = args |> List.toArray
                      DeprecationReason = Some deprecationReason
+                     RemoteInstance = None
                      }
         
         /// <summary>
