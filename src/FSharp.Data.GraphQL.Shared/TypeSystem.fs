@@ -730,6 +730,25 @@ and [<CustomEquality; NoComparison>] internal FieldDefinition<'Val, 'Res> =
         then x.Name + "(" + String.Join(", ", x.Args) + "): " + x.TypeDef.ToString()
         else x.Name + ": " + x.TypeDef.ToString()
 
+and SchemaDef = 
+    interface
+        abstract Name : string
+        abstract Description: string option
+        abstract Schema : ISchema
+    end
+
+and SchemaDefinition = 
+    {
+        Name: string
+        Schema: ISchema
+        Description: string option
+    }
+    interface SchemaDef with
+        member x.Name = x.Name
+        member x.Schema = x.Schema
+        member x.Description = x.Description
+
+
 /// An untyped representation of GraphQL scalar type.
 and ScalarDef = 
     interface
@@ -2092,6 +2111,12 @@ module SchemaDefinitions =
                      DeprecationReason = None
                      RemoteInstance = None
                      }
+
+        static member Schema(name: string, schema: ISchema, description: string option): SchemaDef=
+            upcast { SchemaDefinition.Name = name
+                     Schema = schema
+                     Description = description
+            }
         
         /// <summary>
         /// Creates field defined inside object type.
