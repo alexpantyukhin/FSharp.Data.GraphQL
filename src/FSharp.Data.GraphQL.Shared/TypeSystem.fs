@@ -1880,6 +1880,15 @@ module SchemaDefinitions =
                   "The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text."
           CoerceInput = coerceStringInput
           CoerceValue = coerceStringValue }
+
+    let Obj : ScalarDefinition<obj> = {
+            Name = "Object"
+            Description = 
+               Some 
+                  "The `Object` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text."
+            CoerceInput = Unchecked.defaultof<Value -> obj option>
+            CoerceValue = Unchecked.defaultof<obj -> obj option>
+        }
     
     /// GraphQL type for custom identifier
     let ID<'Val> : ScalarDefinition<'Val> = 
@@ -2144,6 +2153,19 @@ module SchemaDefinitions =
                      Description = None
                      TypeDef = typedef
                      Resolve = Sync(typeof<'Val>, typeof<'Res>, resolve)
+                     Args = [||]
+                     DeprecationReason = None
+                     RemoteInstance = Some remoteInstance
+                      }
+
+        static member SchemaField (name : string,// typedef : #OutputDef<'Res>, 
+                            // [<ReflectedDefinition(true)>] resolve : Expr<ResolveFieldContext -> 'Val -> 'Res>,
+                            remoteInstance: RemoteInstance
+                            ) : FieldDef<'Val> =
+            upcast { FieldDefinition.Name = name
+                     Description = None
+                     TypeDef = Obj
+                     Resolve = Undefined
                      Args = [||]
                      DeprecationReason = None
                      RemoteInstance = Some remoteInstance

@@ -8,24 +8,28 @@ open FSharp.Data.GraphQL.Types
 open FSharp.Data.GraphQL.Parser
 open FSharp.Data.GraphQL.Execution
 open FSharp.Data.GraphQL.Relay
+open Newtonsoft.Json
 
 type IPet =
     interface
         abstract Name : string
         abstract Weight: int
+        abstract Friends: string[]
     end 
 
 type Dog = 
-    { Name: string; Woofs: bool; Weight: int }
+    { Name: string; Woofs: bool; Weight: int; Friends: string[] }
     interface IPet with
         member x.Name = x.Name
         member x.Weight = x.Weight
+        member x.Friends = x.Friends
 
 type Cat = 
-    { Name: string; Meows: bool; Weight: int }
+    { Name: string; Meows: bool; Weight: int; Friends: string[] }
     interface IPet with
         member x.Name = x.Name
         member x.Weight = x.Weight
+        member x.Friends = x.Friends
 
 type Human = { Name: string; }
 
@@ -34,19 +38,79 @@ type Pet =
     | CatCase of Cat
 
 
+
+
+type Friend = 
+    {
+        Name: string
+        Weight: int
+    }
+
+let FriendType =Define.Object<Friend>(
+        name = "Friend",
+        isTypeOf = is<Friend>,
+        fields = [
+            Define.Field("name", String, fun _ d -> d.Name)
+            Define.Field("woofs", Int, fun _ d -> d.Weight)
+        ])
+
+//let remoteSchema = Schema(query = Define.Object("Query", fun () ->
+//        [
+//            Define.Field("friends", ListOf FriendType, (fun _ _ -> [ { Name = "friend 1"; Weight=10; } ; { Name = "friend 2"; Weight=20; }]))
+//        ]), 
+//        config = { SchemaConfig.Default with Types = [FriendType] })
+
+
+let remoteSchema =
+    Schema<obj>(
+        query = Define.Object("Query", fun () ->
+        [
+            Define.Field("friends", ListOf FriendType, (fun _ _ -> [{ Name = "friend 1"; Weight=10; } :> Friend ; upcast { Name = "friend 2"; Weight=20; } ]))
+        ]), 
+        config = { SchemaConfig.Default with Types = [FriendType] })
+
 type CustomRemoteInstance() = 
-    let remoteStrategy resolveCtx obj = 
+    let remoteStrategy (resolveCtx : ResolveFieldContext) obj = 
+        let a = 0
 //        Unchecked.defaultof<AsyncVal<obj>>
-        AsyncVal.wrap(
-                    NameValueLookup.ofList [
-                              "pets", upcast [
-                                NameValueLookup.ofList [
-                                    "name", "Odie" :> obj
-                                    "woofs", upcast true ] :> obj
-                                upcast NameValueLookup.ofList [
-                                    "name", "Garfield" :> obj
-                                    "meows", upcast false]]] :> obj
-                      )
+
+//        AsyncVal.wrap(
+//                    NameValueLookup.ofList [
+//                              "pets", upcast [
+//                                NameValueLookup.ofList [
+//                                    "name", "Odie" :> obj
+//                                    "woofs", upcast true ] :> obj
+//                                upcast NameValueLookup.ofList [
+//                                    "name", "Garfield" :> obj
+//                                    "meows", upcast false]]] :> obj
+//                      )
+        let astString = JsonConvert.SerializeObject(resolveCtx.ExecutionInfo.Ast)
+        let ast = JsonConvert.DeserializeObject<Ast.Field>(astString)
+
+        let operationDefinition = 
+            {
+                Ast.OperationDefinition.OperationType = Ast.Query
+                Ast.OperationDefinition.Name = Some "subquery"
+                Ast.OperationDefinition.VariableDefinitions = []
+                Ast.OperationDefinition.Directives = []
+                Ast.OperationDefinition.SelectionSet = [
+                      Ast.Selection.Field (ast)
+                ]
+            }
+
+        let sp = SchemaProcessor(remoteSchema)
+        let doc = {
+            Ast.Document.Definitions = [
+                Ast.Definition.OperationDefinition operationDefinition
+            ]
+        }
+
+        let result = sync <| sp.AsyncExecute(doc)
+        AsyncVal.wrap(result :> obj)
+
+        //AsyncVal.wrap(
+        //            NameValueLookup.ofList [ "11", "22" :> obj] :> obj)
+
 
     interface RemoteInstance with
         member x.RemoteStrategy resolveCtx obj = remoteStrategy resolveCtx obj
@@ -54,8 +118,7 @@ type CustomRemoteInstance() =
 [<Fact>]
 let ``Execute handles execution of abstract types: isTypeOf is used to resolve runtime type for Interface`` () = 
     let remoteInstace = CustomRemoteInstance() :> RemoteInstance
-    //let 
-    let PetType = Define.Interface("Pet", fun () -> [ Define.Field("name", String) ])
+    let PetType = Define.Interface("Pet", fun () -> [ Define.Field("name", String); Define.Field("friends", Obj) ])
     let DogType =
       Define.Object<Dog>(
         name = "Dog", 
@@ -65,6 +128,7 @@ let ``Execute handles execution of abstract types: isTypeOf is used to resolve r
             Define.Field("name", String, fun _ d -> d.Name)
             Define.Field("woofs", Boolean, fun _ d -> d.Woofs)
             Define.Field("weight", Int, fun _ d -> d.Weight)
+            Define.SchemaField("friends", remoteInstace)
         ])
     let CatType =
       Define.Object<Cat>(
@@ -75,12 +139,13 @@ let ``Execute handles execution of abstract types: isTypeOf is used to resolve r
             Define.Field("name", String, fun _ c -> c.Name)
             Define.Field("meows", Boolean, fun _ c -> c.Meows)
             Define.Field("weight", Int, fun _ d -> d.Weight)
+            Define.Field("friends", Obj, fun _ d -> d.Friends :> obj)
         ])
     let schema =
       Schema(
         query = Define.Object("Query", fun () ->
         [
-            Define.Field("pets", ListOf PetType, (fun _ _ -> [ { Name = "Odie"; Woofs = true; Weight=10 } :> IPet ; upcast { Name = "Garfield"; Meows = false; Weight=20 } ]))//, remoteInstace)
+            Define.Field("pets", ListOf PetType, (fun _ _ -> [ { Name = "Odie"; Woofs = true; Weight=10; Friends=[|"bb"|] } :> IPet ; upcast { Name = "Garfield"; Meows = false; Weight=20; Friends=[|"gg"|] } ]))
         ]), 
         config = { SchemaConfig.Default with Types = [CatType; DogType] })
     let schemaProcessor = SchemaProcessor(schema)
@@ -92,6 +157,9 @@ let ``Execute handles execution of abstract types: isTypeOf is used to resolve r
         }
         ... on Cat {
           meows
+        }
+        friends {
+            relationships
         }
       }
     }"""
