@@ -51,15 +51,8 @@ let FriendType =Define.Object<Friend>(
         isTypeOf = is<Friend>,
         fields = [
             Define.Field("name", String, fun _ d -> d.Name)
-            Define.Field("woofs", Int, fun _ d -> d.Weight)
+            Define.Field("weight", Int, fun _ d -> d.Weight)
         ])
-
-//let remoteSchema = Schema(query = Define.Object("Query", fun () ->
-//        [
-//            Define.Field("friends", ListOf FriendType, (fun _ _ -> [ { Name = "friend 1"; Weight=10; } ; { Name = "friend 2"; Weight=20; }]))
-//        ]), 
-//        config = { SchemaConfig.Default with Types = [FriendType] })
-
 
 let remoteSchema =
     Schema<obj>(
@@ -71,19 +64,6 @@ let remoteSchema =
 
 type CustomRemoteInstance() = 
     let remoteStrategy (resolveCtx : ResolveFieldContext) obj = 
-        let a = 0
-//        Unchecked.defaultof<AsyncVal<obj>>
-
-//        AsyncVal.wrap(
-//                    NameValueLookup.ofList [
-//                              "pets", upcast [
-//                                NameValueLookup.ofList [
-//                                    "name", "Odie" :> obj
-//                                    "woofs", upcast true ] :> obj
-//                                upcast NameValueLookup.ofList [
-//                                    "name", "Garfield" :> obj
-//                                    "meows", upcast false]]] :> obj
-//                      )
         let astString = JsonConvert.SerializeObject(resolveCtx.ExecutionInfo.Ast)
         let ast = JsonConvert.DeserializeObject<Ast.Field>(astString)
 
@@ -106,10 +86,10 @@ type CustomRemoteInstance() =
         }
 
         let result = sync <| sp.AsyncExecute(doc)
-        AsyncVal.wrap(result :> obj)
+        let errors = result.TryGetValue("errors")
+        let resData = result.["data"] :?> Collections.Generic.IDictionary<string, obj>
 
-        //AsyncVal.wrap(
-        //            NameValueLookup.ofList [ "11", "22" :> obj] :> obj)
+        AsyncVal.wrap(resData.[ast.Name] :> obj)
 
 
     interface RemoteInstance with
@@ -145,7 +125,7 @@ let ``Execute handles execution of abstract types: isTypeOf is used to resolve r
       Schema(
         query = Define.Object("Query", fun () ->
         [
-            Define.Field("pets", ListOf PetType, (fun _ _ -> [ { Name = "Odie"; Woofs = true; Weight=10; Friends=[|"bb"|] } :> IPet ; upcast { Name = "Garfield"; Meows = false; Weight=20; Friends=[|"gg"|] } ]))
+            Define.Field("pets", ListOf PetType, (fun _ _ -> [ { Name = "Odie"; Woofs = true; Weight=10; Friends=[|"bb"|] } :> IPet ; upcast { Name = "Garfield"; Meows = false; Weight=20; Friends=[||] } ]))
         ]), 
         config = { SchemaConfig.Default with Types = [CatType; DogType] })
     let schemaProcessor = SchemaProcessor(schema)
@@ -159,7 +139,8 @@ let ``Execute handles execution of abstract types: isTypeOf is used to resolve r
           meows
         }
         friends {
-            relationships
+            name
+            weight
         }
       }
     }"""
@@ -169,10 +150,21 @@ let ``Execute handles execution of abstract types: isTypeOf is used to resolve r
           "pets", upcast [
             NameValueLookup.ofList [
                 "name", "Odie" :> obj
-                "woofs", upcast true ] :> obj
+                "woofs", upcast true
+                "friends", upcast [
+                    NameValueLookup.ofList [
+                        "name", upcast "friend 1"
+                        "weight", upcast 10
+                    ]
+                    NameValueLookup.ofList [
+                        "name", upcast "friend 2"
+                        "weight", upcast 20
+                    ]
+                        ] ] :> obj
             upcast NameValueLookup.ofList [
                 "name", "Garfield" :> obj
-                "meows", upcast false]]]
+                "meows", upcast false
+                "friends", upcast []]]]
     noErrors result
     result.["data"] |> equals (upcast expected)
 

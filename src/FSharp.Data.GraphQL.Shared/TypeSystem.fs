@@ -1886,8 +1886,8 @@ module SchemaDefinitions =
             Description = 
                Some 
                   "The `Object` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text."
-            CoerceInput = Unchecked.defaultof<Value -> obj option>
-            CoerceValue = Unchecked.defaultof<obj -> obj option>
+            CoerceInput = (fun (o: Value) -> Some (o:>obj))
+            CoerceValue = (fun (o: obj) -> Some (o))
         }
     
     /// GraphQL type for custom identifier
